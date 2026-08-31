@@ -1,6 +1,5 @@
 """
 Deep Q-Network (DQN) on CartPole-v1 (Gymnasium)
-=================================================
 
 CartPole is the classic inverted-pendulum / pole-balancing control problem:
 a cart moves along a frictionless track, with a pole hinged on top of it.
@@ -12,7 +11,6 @@ landing stabilisation, and industrial crane control), which is why it is
 used here instead of a purely symbolic grid-world.
 
 Why DQN (rather than tabular Q-Learning) for this problem?
--------------------------------------------------------------
 CartPole's state space is CONTINUOUS: cart position, cart velocity, pole
 angle, and pole angular velocity are all real-valued. A tabular Q-Learning
 approach (as used for FrozenLake) is not viable here, because there is no
@@ -36,7 +34,6 @@ Key DQN mechanisms implemented below:
 import random
 import copy
 from collections import deque, namedtuple
-
 import numpy as np
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -45,9 +42,7 @@ import torch.nn as nn
 import torch.optim as optim
 import json
 
-# ---------------------------------------------------------------------
-# 1. Environment setup
-# ---------------------------------------------------------------------
+# Environment setup
 # CartPole-v1:
 #   State (observation):  [cart position, cart velocity,
 #                           pole angle,    pole angular velocity]  (4 continuous values)
@@ -63,9 +58,7 @@ n_actions = env.action_space.n               # 2
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"State dim: {state_dim}, Actions: {n_actions}, Device: {device}")
 
-# ---------------------------------------------------------------------
-# 2. Q-Network (function approximator replacing the Q-table)
-# ---------------------------------------------------------------------
+# Q-Network (function approximator replacing the Q-table)
 class QNetwork(nn.Module):
     """Maps a 4-dimensional state to Q-values for both discrete actions."""
     def __init__(self, state_dim, n_actions, hidden=128):
@@ -82,9 +75,7 @@ class QNetwork(nn.Module):
         return self.net(x)
 
 
-# ---------------------------------------------------------------------
-# 3. Experience Replay Buffer
-# ---------------------------------------------------------------------
+# Experience Replay Buffer
 Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
 
 class ReplayBuffer:
@@ -101,36 +92,27 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-
-# ---------------------------------------------------------------------
-# 4. Hyperparameters
-# ---------------------------------------------------------------------
+# Hyperparameters
 n_episodes = 500
-max_steps_per_episode = 500     # CartPole-v1's own success cap
-
+max_steps_per_episode = 500  # CartPole-v1's own success cap
 learning_rate = 5e-4
-discount_factor = 0.99          # gamma
+discount_factor = 0.99  # gamma
 batch_size = 64
 replay_capacity = 50000
 min_replay_before_training = 1000
 target_soft_update_tau = 0.005  # Polyak averaging coefficient for the target network
-
 epsilon = 1.0
 min_epsilon = 0.05
-epsilon_decay = 0.98             # multiplicative decay per episode
+epsilon_decay = 0.98  # multiplicative decay per episode
 
-# ---------------------------------------------------------------------
-# 5. Initialise networks, optimizer, replay buffer
-# ---------------------------------------------------------------------
+# Initialise networks, optimizer, replay buffer
 policy_net = QNetwork(state_dim, n_actions).to(device)
 target_net = QNetwork(state_dim, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())   # sync target net initially
 target_net.eval()
-
 optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
 loss_fn = nn.SmoothL1Loss()   # Huber loss: more robust to outlier TD errors than MSE
 replay_buffer = ReplayBuffer(replay_capacity)
-
 
 def select_action(state, epsilon):
     """Epsilon-greedy action selection."""
@@ -141,9 +123,8 @@ def select_action(state, epsilon):
         q_values = policy_net(state_t)
         return int(torch.argmax(q_values, dim=1).item())   # exploit
 
-
 def optimize_model():
-    """One gradient step of DQN training using a sampled mini-batch."""
+    # One gradient step of DQN training using a sampled mini-batch.
     if len(replay_buffer) < max(batch_size, min_replay_before_training):
         return None
 
@@ -170,7 +151,6 @@ def optimize_model():
         td_target = rewards + discount_factor * max_next_q * (1 - dones)
 
     loss = loss_fn(q_values, td_target)
-
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10)  # gradient clipping for stability
@@ -189,10 +169,7 @@ def optimize_model():
 
     return loss.item()
 
-
-# ---------------------------------------------------------------------
-# 6. Training loop
-# ---------------------------------------------------------------------
+# Training loop
 episode_rewards = []
 losses = []
 
@@ -274,9 +251,7 @@ policy_net.load_state_dict(best_state_dict)
 target_net.load_state_dict(best_state_dict)
 print(f"\nUsing best checkpoint: avg reward {best_avg_reward:.1f} (20-episode moving average)")
 
-# ---------------------------------------------------------------------
-# 7. Performance evaluation
-# ---------------------------------------------------------------------
+# Performance evaluation
 window = 20
 moving_avg = [np.mean(episode_rewards[max(0, i - window):i + 1]) for i in range(len(episode_rewards))]
 
@@ -296,9 +271,7 @@ plt.tight_layout()
 plt.savefig("training_progress.png", dpi=150)
 print("Saved training_progress.png")
 
-# ---------------------------------------------------------------------
-# 8. Testing the trained agent (greedy policy, epsilon=0)
-# ---------------------------------------------------------------------
+# Testing the trained agent (greedy policy, epsilon=0)
 test_env = gym.make("CartPole-v1")
 n_test_episodes = 100
 test_rewards = []
@@ -326,9 +299,7 @@ print(f"\nTest results over {n_test_episodes} episodes:")
 print(f"  Average reward (avg steps balanced): {avg_test_reward:.1f} / 500")
 print(f"  Fraction of episodes 'solved' (>=475 steps): {solved_fraction:.1%}")
 
-# ---------------------------------------------------------------------
-# 9. Save results for the report
-# ---------------------------------------------------------------------
+# Save results for the report
 results = {
     "n_episodes": n_episodes,
     "episodes_run": len(episode_rewards),
